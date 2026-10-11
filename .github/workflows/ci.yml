@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install media tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg mpv
+      - name: Install package
+        run: python -m pip install .
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+
+  package:
+    name: Formatting and distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+      - name: Install development tools
+        run: python -m pip install '.[dev]'
+      - name: Check formatting
+        run: python -m black --check src tests
+      - name: Build distributions
+        run: python -m build
+      - name: Test wheel installation
+        run: |
+          python -m venv /tmp/ctv-core-wheel
+          /tmp/ctv-core-wheel/bin/python -m pip install dist/*.whl
+          /tmp/ctv-core-wheel/bin/ctv-play --help
+          /tmp/ctv-core-wheel/bin/python -m ctv_core --help
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error
